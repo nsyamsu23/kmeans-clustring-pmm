@@ -44,8 +44,7 @@ reviews_df = global_data.reviews_all_app()
 reviews_df["at"] = pd.to_datetime(reviews_df["at"])
 kamus_tidak_baku = global_data.data_dict()
 chat_words_mapping = global_data.chat_words_mapping()
-if 'df_reviews_all_proses' not in st.session_state:
-    st.session_state.df_reviews_all_proses = prepare_data(reviews_df, kamus_tidak_baku, chat_words_mapping)
+st.session_state.df_reviews_all_proses = prepare_data(reviews_df, kamus_tidak_baku, chat_words_mapping)
 
 # Create the navigation bar
 page = st_navbar(pages, styles=styles)
