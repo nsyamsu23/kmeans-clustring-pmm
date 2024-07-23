@@ -3,6 +3,8 @@ import global_data
 import pandas as pd
 import string
 import re
+from googletrans import Translator
+import tensorflow_text as text
 from nltk.corpus import stopwords
 from wordcloud import WordCloud
 import nltk
@@ -14,7 +16,6 @@ import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
 from sklearn.feature_extraction.text import TfidfVectorizer
-from tensorflow import keras
 from gensim.models import Word2Vec
 import numpy as np
 from sklearn.cluster import KMeans
@@ -25,12 +26,18 @@ from sklearn.decomposition import PCA
 import g4f
 from g4f.client import Client
 import curl_cffi
+import numpy as np
+import tensorflow_hub as hub
+
+from tensorflow_text import SentencepieceTokenizer
+
 client = Client()
 postagger = PosTag()
 tokenizer = Tokenizer()
 stopword_nlp_id = StopWord()
 lemmatizer = Lemmatizer()
 emoji_dict = global_data.emojiDict()
+translator = Translator()
 nltk.download('punkt')
 # Fungsi untuk memplot distribusi skor berdasarkan cluster
 # Fungsi untuk menganalisis dan merangkum cluster
@@ -47,7 +54,7 @@ def plot_score_distribution(df_combined):
     colors = ['blue', 'green', 'red']
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    bin_edges = [1, 2, 3, 4, 5, 6]
+    bin_edges = [1, 2, 3,4,5,6]
     for i, cluster in enumerate(df_combined['cluster'].unique()):
         cluster_data = df_combined[df_combined['cluster'] == cluster]
         ax.hist(cluster_data['score'], bins=bin_edges, alpha=0.5, label=f'Cluster {cluster}', edgecolor='black', color=colors[i])
@@ -78,7 +85,11 @@ def g4f_search(tokens):
         cleaned_text = re.sub(pattern, "", text)
         cleaned_text = cleaned_text.lower()
         return cleaned_text
-    return remove_pattern(response.choices[0].message.content)
+    def translate_text(text, src_language='auto', dest_language='id'):
+        translator = Translator()
+        translation = translator.translate(text, src=src_language, dest=dest_language)
+        return translation.text
+    return remove_pattern(translate_text(response.choices[0].message.content))
 # Fungsi untuk menggabungkan DataFrame berdasarkan reviewId dan menyesuaikan kolom score
 def combine_dataframes(df_reviews_all, df_reviews_all_modelling):
     df_reviews_all_modelling_filtered = df_reviews_all_modelling[df_reviews_all_modelling['reviewId'].isin(df_reviews_all['reviewId'])]
@@ -110,10 +121,10 @@ def display_dbi_scores(X_normalized, clust_num):
     range_n_clusters = range(2, clust_num + 1)  # Tentukan rentang jumlah cluster yang ingin diuji
 
     for n_clusters in range_n_clusters:
-        kmeans = KMeans(n_clusters=n_clusters, random_state=10)
+        kmeans = KMeans(n_clusters=n_clusters, random_state=5)
         kmeans.fit(X_normalized)
         labels = kmeans.labels_
-        dbi = davies_bouldin_score(X_normalized.toarray(), labels)
+        dbi = davies_bouldin_score(X_normalized, labels)
         dbi_scores.append(dbi)
         st.write(f'Number of Clusters: {n_clusters}, Davies-Bouldin Index: {dbi}')
 
@@ -217,36 +228,60 @@ def process_and_display_clusters(df_reviews_all_modelling):
     overall_word_freq = calculate_word_frequencies(df_reviews_all_modelling, clusters)
     reassigned_df = reassign_clusters(df_reviews_all_modelling, overall_word_freq, clusters)
     generate_wordcloud_and_frequencies(reassigned_df, clusters)
-# Fungsi untuk melakukan pembobotan kata
-def pembobotan_kata(df, metode, vector_size=300, window=10, min_count=10, workers=5):
-    texts = df['content_proses_stemming_nlp_id']
+def create_frequency_dict(texts):
+    vectorizer = CountVectorizer()
+    X = vectorizer.fit_transform(texts)
+    freqs = X.toarray().sum(axis=0)
+    vocab = vectorizer.get_feature_names_out()
+    frequency_dict = dict(zip(vocab, freqs))
+    return frequency_dict
+
+def replace_low_frequency_words(text, frequency_dict, threshold=5):
+    words = text.split()
+    replaced_words = [max(frequency_dict, key=frequency_dict.get) if frequency_dict.get(word, 0) < threshold else word for word in words]
+    return ' '.join(replaced_words)
+
+def pembobotan_kata(df, metode):
+    texts = df['content_proses_stemming_nlp_id'].astype(str)
+    num_documents = len(texts)
+    
+    # Create frequency dictionary
+    frequency_dict = create_frequency_dict(texts)
+    
+    # Replace low frequency words
+    texts = texts.apply(lambda x: replace_low_frequency_words(x, frequency_dict))
     
     if metode == 'bag_of_words':
         vectorizer = CountVectorizer()
-        X = vectorizer.fit_transform(texts)
+        X = vectorizer.fit_transform(texts).toarray()
     elif metode == 'tfidf':
         vectorizer = TfidfVectorizer()
-        X = vectorizer.fit_transform(texts)
+        X = vectorizer.fit_transform(texts).toarray()
     elif metode == 'word2vec':
-        sentences = texts.apply(lambda x: x.split())
-        model = Word2Vec(sentences, vector_size=vector_size, window=window, min_count=min_count, workers=workers)
-        word_vectors = model.wv
+        # Load Word2Vec model from TensorFlow Hub
+        embed = hub.load("https://tfhub.dev/google/Wiki-words-250/2")
 
-        def document_vector(doc):
-            doc = [word_vectors[word] for word in doc.split() if word in word_vectors.key_to_index]
-            return np.mean(doc, axis=0) if len(doc) > 0 else np.zeros(vector_size)
-        
-        X = np.array([document_vector(doc) for doc in texts])
+        def embed_text(text):
+            tokens = text.split()  # Basic tokenization
+            embeddings = [embed([token]) for token in tokens]
+            embeddings = [embedding.numpy() for embedding in embeddings]
+            if embeddings:
+                return np.mean(embeddings, axis=0).flatten()
+            else:
+                return np.zeros(250)  # Assuming 250 dimensions for Wiki-words-250 model
+
+        X = np.array([embed_text(doc) for doc in texts])
     else:
         raise ValueError("Metode pembobotan tidak dikenal.")
-    
+
     X_normalized = normalize(X)
     return X, X_normalized
+
 
 # Fungsi untuk melakukan clustering
 def clustering_k_means(df, metode_pembobotan, clust_num):
     X, X_normalized = pembobotan_kata(df, metode_pembobotan)
-    kmeans = KMeans(n_clusters=clust_num, random_state=0)
+    kmeans = KMeans(n_clusters=clust_num, random_state=5)
     kmeans.fit(X_normalized)
     labels = kmeans.labels_
     
@@ -286,7 +321,7 @@ def prepare_data(df,kamus_tidak_baku,chat_words_mapping):
     # Stemming dan Lemmatisasi
     reset_total_changed_count()
     df_proses['content_proses_stemming_nlp_id'] = df_proses['content_tokenizing'].progress_apply(process_and_count_changes)
-
+    df_proses['content_tokenizing'] = df_proses['content_proses_stemming_nlp_id'].apply(tokenizing_words)
     return df_proses
 # Definisikan fungsi untuk lemmatisasi token
 def lemmatize_wrapper(tokens):
@@ -369,7 +404,7 @@ def remove_pattern(text):
 def remove_stop_words_nltk(text):
     stop_words = stopwords.words('indonesian')
     stop_words.extend([
-        "pmm","merdeka mengajar","nya"
+        "pmm","merdeka mengajar","nya","ok"
     ])
     stop_words = set(stop_words)
     words = text.split()
