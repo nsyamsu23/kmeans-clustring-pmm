@@ -53,24 +53,26 @@ df_reviews_all_proses = st.session_state.df_reviews_all_proses
 page = st_navbar(pages, styles=styles)
 
 # Get user inputs for clustering
-if 'clust_num' not in st.session_state:
-    st.session_state.clust_num = 3
+st.session_state.clust_num = 3
 if 'metode_pembobotan' not in st.session_state:
     st.session_state.metode_pembobotan = 'word2vec'
+    
 
 clust_num = st.session_state.clust_num
 metode_pembobotan = st.session_state.metode_pembobotan
-
 X, X_normalized = pembobotan_kata(df_reviews_all_proses, metode_pembobotan)
 df_hasil = clustering_k_means(df_reviews_all_proses, metode_pembobotan, clust_num)
 df_combined = combine_dataframes(reviews_df, df_hasil)
 cluster_counts = df_hasil['cluster'].value_counts()
 cluster_summary = summarize_clusters(df_combined)
 
+
 # Page: About
 if page == "About":
     st.header("About")
-    st.write("Ini adalah halaman tentang aplikasi ini, yang menjelaskan tujuan dan cara penggunaan aplikasi.")
+    st.image(image="https://play-lh.googleusercontent.com/jBzUQv7vmYT_AUDOt-WQX3Uh4lupq6omQaL2nCdzlG4zNmZUJ2PaqCGpc_03-FBw7w",width=100,use_column_width=100)
+    st.write('Aplikasi **Merdeka Mengajar** adalah platform edukasi yang dikembangkan oleh Kemendikbudristek untuk mendukung guru dalam mengajar, meningkatkan kompetensi, dan berkarya. Aplikasi ini menawarkan berbagai fitur seperti produk asesmen murid untuk evaluasi belajar, perangkat ajar yang menyediakan materi mengajar berkualitas, serta video inspirasi yang berisi praktik ajar dan pengembangan diri. Selain itu, terdapat pelatihan mandiri yang memungkinkan guru meningkatkan keterampilan mereka secara fleksibel. Fitur "Bukti Karya Saya" juga memberikan ruang bagi guru untuk mendokumentasikan dan berbagi prestasi mereka. Aplikasi ini dirancang untuk memfasilitasi pembelajaran yang lebih baik dan mandiri bagi para pendidik di Indonesia.')
+    st.write('Merdeka Mengajar adalah aplikasi edukasi yang digunakan oleh banyak guru di Indonesia, dan analisis clustering dari ulasan pengguna di Google Play Store dapat memberikan wawasan penting tentang pengalaman dan persepsi pengguna terhadap aplikasi ini. Dengan menggunakan teknik clustering, ulasan-ulasan tersebut dapat dikelompokkan berdasarkan tema atau sentimen yang serupa, seperti kemudahan penggunaan, kualitas konten, atau dukungan teknis. Misalnya, analisis clustering dapat mengidentifikasi kelompok pengguna yang merasa terbantu dengan fitur "Produk Asesmen Murid" atau "Perangkat Ajar," sementara kelompok lain mungkin menyoroti tantangan dalam navigasi atau kebutuhan akan lebih banyak materi pelatihan. Melalui pemahaman yang mendalam ini, pengembang aplikasi dapat lebih fokus pada peningkatan aspek-aspek tertentu dari aplikasi untuk meningkatkan kepuasan pengguna. Selain itu, analisis ini dapat membantu Kemendikbudristek dalam merumuskan strategi komunikasi dan pengembangan fitur di masa mendatang, memastikan aplikasi Merdeka Mengajar semakin efektif dalam mendukung pendidikan di Indonesia.')
 
 elif page == "Data Preparation":
     st.header("Data Preparation")
@@ -116,10 +118,7 @@ elif page == "Modeling dan Evaluasi":
     st.header("Modeling dan Evaluasi")
     st.write("Halaman ini digunakan untuk melakukan pemodelan dan evaluasi hasil clustering dari data ulasan.")
     col1input, col2input = st.columns(2)
-    with col1input: 
-        st.session_state.clust_num = st.number_input("Masukkan jumlah cluster:", min_value=2, value=3)
-    with col2input:
-        st.session_state.metode_pembobotan = st.selectbox("Pilih metode pembobotan:", ('bag_of_words', 'tfidf', 'word2vec'), index=2)
+    st.session_state.metode_pembobotan = st.selectbox("Pilih metode pembobotan:", ('bag_of_words', 'tfidf', 'word2vec'), index=2)
 
     df_reviews_all_proses = st.session_state.df_reviews_all_proses
 
@@ -178,11 +177,7 @@ elif page == "Dashboard":
     col6.metric(label="Lebih dari 30 Hari", value=len(reviews_df[reviews_df['at'] < (reviews_df['at'].max() - pd.Timedelta(days=30))]))
     st.dataframe(reviews_df.head(5), use_container_width=True)
 
-    col1input, col2input = st.columns(2)
-    with col1input: 
-        st.session_state.clust_num = st.number_input("Masukkan jumlah cluster:", min_value=2, value=3)
-    with col2input:
-        st.session_state.metode_pembobotan = st.selectbox("Pilih metode pembobotan:", ('bag_of_words', 'tfidf', 'word2vec'), index=2)
+    st.session_state.metode_pembobotan = st.selectbox("Pilih metode pembobotan:", ('bag_of_words', 'tfidf', 'word2vec'), index=2)
 
     # Ensure the score column is of type integer
     reviews_df['score'] = reviews_df['score'].astype(int)

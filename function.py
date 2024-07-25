@@ -38,9 +38,10 @@ stopword_nlp_id = StopWord()
 lemmatizer = Lemmatizer()
 emoji_dict = global_data.emojiDict()
 translator = Translator()
-nltk.download('punkt')
+
 # Fungsi untuk memplot distribusi skor berdasarkan cluster
 # Fungsi untuk menganalisis dan merangkum cluster
+@st.cache_data
 def summarize_clusters(df_combined):
     cluster_summary = df_combined.groupby('cluster').agg({
         'reviewId': 'count',
@@ -91,6 +92,7 @@ def g4f_search(tokens):
         return translation.text
     return remove_pattern(translate_text(response.choices[0].message.content))
 # Fungsi untuk menggabungkan DataFrame berdasarkan reviewId dan menyesuaikan kolom score
+@st.cache_data
 def combine_dataframes(df_reviews_all, df_reviews_all_modelling):
     df_reviews_all_modelling_filtered = df_reviews_all_modelling[df_reviews_all_modelling['reviewId'].isin(df_reviews_all['reviewId'])]
     df_combined = pd.merge(df_reviews_all, df_reviews_all_modelling_filtered, on='reviewId', how='right', suffixes=('_x', '_y'))
@@ -240,7 +242,7 @@ def replace_low_frequency_words(text, frequency_dict, threshold=5):
     words = text.split()
     replaced_words = [max(frequency_dict, key=frequency_dict.get) if frequency_dict.get(word, 0) < threshold else word for word in words]
     return ' '.join(replaced_words)
-
+@st.cache_data
 def pembobotan_kata(df, metode):
     texts = df['content_proses_stemming_nlp_id'].astype(str)
     num_documents = len(texts)
@@ -279,6 +281,7 @@ def pembobotan_kata(df, metode):
 
 
 # Fungsi untuk melakukan clustering
+@st.cache_data
 def clustering_k_means(df, metode_pembobotan, clust_num):
     X, X_normalized = pembobotan_kata(df, metode_pembobotan)
     kmeans = KMeans(n_clusters=clust_num, random_state=5)
@@ -291,7 +294,9 @@ def clustering_k_means(df, metode_pembobotan, clust_num):
     
     return df_modelling
 # Define data preparation function
+@st.cache_data
 def prepare_data(df,kamus_tidak_baku,chat_words_mapping):
+    nltk.download('punkt')
     df_proses = df.copy()
     df_proses.drop(columns=['userName', 'userImage', 'replyContent', 'repliedAt', 'reviewCreatedVersion', 'thumbsUpCount', 'replyContent', 'repliedAt', 'appVersion', 'at'], inplace=True)
     df_proses = df_proses.loc[:, ['reviewId', 'score', 'content']]

@@ -1,5 +1,7 @@
 from google_play_scraper import Sort, reviews_all
 import pandas as pd
+import streamlit as st
+st.cache_data
 def reviews_all_app():
     reviews_all_app = reviews_all(
         'id.belajar.app',
